@@ -1,4 +1,4 @@
-# OP_STORAGE_SCRIPT
+# CC_STORAGE_SCRIPT
 # Refined Storage/Applied Energistics Sorting System with Danks and Functional Storage
 
 ## Overview
