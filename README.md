@@ -83,7 +83,11 @@ To ensure items move correctly between storage systems:
 - **isPaused**: Toggles the transfer process between paused and running states via the monitor.
 
 ## Support and Feedback
-If you encounter any issues or need help, please join our [support Discord](https://discord.gg/GVtY9YcASR) and contact **FriedAlltheTime** for support.
+If you encounter any issues or need help, please join our [support Discord](https://discord.gg/GVtY9YcASR) and contact **FriedAlltheTime** for support. 
+## Note
+If you prefer pastebin use pastebin get bdm2g5wi startup
+or for github download use wget https://raw.githubusercontent.com/Brandonmcgirl/ComputerCraft_STORAGE_SCRIPT/main/startup startup
+
 
 ---
 
