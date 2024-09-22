@@ -1,0 +1,871 @@
+-- IMPORTANT Information --
+
+-- Explanation:
+-- - `Bridges (RS/ME)` connect via wired modems on the ANY side of the Advanced Computer.
+-- - `Functional Storage Controllers` connect via the ANY side of the Advanced Computer.
+-- - `Danks` connect via the ANY of the Advanced Computer.
+-- - `Monitor` connects via the ANY of the Advanced Computer. -- - Attach a 2x4 width x height 
+
+-- - Ensure all items are linked to the main storage system via external storage buses (Refined Storage) or ME storage buses (Applied Energistics 2). i.e Danks and FS Controller need me storage buses or external storage -- -- bus for RS to compare and move items properly
+
+-- - Please note if cables from each side are connected / overlapping it will cause detection issues I am sorry!
+-- -If issues arise, please join [our support Discord](https://discord.gg/GVtY9YcASR) and contact FriedAlltheTime for help.
+--------------------------------------------------------------------------------------------------------------------
+
+-- Basic Setup Instructions --
+
+-- Explanation:
+-- - This sorting system integrates with Refined Storage and Applied Energistics (using RS Bridges and ME Bridges).
+-- - Connect your main RS or ME system via RS Bridge or ME Bridge on the with wired modems.
+-- - Attach a 2x4 width x height monitor to the Advanced Computer for status updates. -- not optional
+-- - Connect storage devices (Danks and/or Functional Storage)
+-- - Ensure each storage device has at least one item in its slots or drawers to be included in the sorting process.
+-- - For Danks, fill each slot on the first Dank before proceeding to the next to ensure correct item allocation.
+
+-- Additional Setup:
+-- - Position Storage device on a side of your meBrige and then change cSide1 to the direction that it is on using f3 to tell i.e north, south, east, west
+-- - Ensure all items are linked to the main storage system via external storage buses (Refined Storage) or ME storage buses (Applied Energistics 2).
+
+--------------------------------------------------------------------------------------------------------------------
+
+-- Operational Details --
+
+-- Explanation:
+-- - The system compares the quantity of items in the storage device (Functional Storage or Danks) with the total in the main storage.
+-- - It moves items to balance the quantities based on the comparison.
+-- - For example, if Functional Storage has 1000 cobblestones and the total system has 2000, the system will move 1000 items.
+
+-- Performance:
+-- - With one bridge you can have 3 Danks and A Functional Storage Controller for upto 243 slots just using the Danks!(486 BILLION ITEMS CAN BE STORED) (If Max LV DANKS!!)
+-- - If using Both FS and Danks 
+
+--------------------------------------------------------------------------------------------------------------------
+
+-- How to Use --
+
+-- Functional Storage:
+-- Explanation:
+-- - Ensure each drawer in Functional Storage has at least one item of the type to move. (A LOCKED DRAWER IS STILL EMPTY!!)
+-- - Example: To move cobblestone, place cobblestone in one drawer and another item in the second drawer. If the second drawer is empty, items may be distributed between both.
+
+--------------------------------------------------------------------------------------------------------------------
+
+-- Danks:
+-- Explanation:
+-- - Place one item in a slot of the Dank and press CTRL to lock the slot. This initiates the porting process.
+-- - Press RESUME in Dank mode to start moving items. The system will continue to search and move items until all items are ported or new items are added.
+
+--------------------------------------------------------------------------------------------------------------------
+-- Priority logic, storage bus/ external storage 
+-- - To PULL items out of a storage device attached and into another the priority of the one you want to pull from must be lower
+-- - i.e if trying to pull from disks main disk priority 0 and FS priority 1 items will go to the FS 
+-- - if reversed items will never transfer!!!!!!!!!!! <-------------------- 
+-- - if reversed items will never transfer!!!!!!!!!!! <-------------------- 
+-- - if reversed items will never transfer!!!!!!!!!!! <-------------------- 
+
+
+------------------------------------------------------WARNING-------------------------------------------------------
+-- Currently The script sends all the connected bridges the same transfer messages using one bridge is recomended -- 
+-- using multiple will not increase the speed of the program just the amount of Danks you can connect --
+
+-- If this gets alot of support I will add the ability to have more Danks added! --
+-- currently if you only used danks on all 4 sides you would have a storage Capacity of --
+--------------------- 324 slots with a storage capacity of 695,784,701,628 almost 700 billion! -- 
+-- With Maxed level danks, rough 2.1 billion per slot -- 
+--------------------------------------------------------------------------------------------------------------------
+
+-- Troubleshooting:
+-- - For assistance or issues, please join 
+-- [support Discord](https://discord.gg/GVtY9YcASR) and contact FriedAlltheTime for support.
+--------------------------------------------------------------------------------------------------------------------
+
+-- SETTINGS
+-- false disables transferBatchSize and uses automated values via exact system differences
+
+local transferSetting = false
+
+--------------------------------------------------------------------------------------------------------------------
+-- (DISABLED when transferSetting = false)
+local transferBatchSize = 1 -- The maximum amount of items to transfer at a time of each ME/RS bridge. highest tested number 1 Billion
+-- (DISABLED when transferSetting = false)
+--------------------------------------------------------------------------------------------------------------------
+
+local TriggerPoint = 500 -- If you have an item coming into your system too quick and you have a loop where difference is stuck at a low number that fluctuates set this higher 20 is default 
+local sleepInterval = 0.2 -- Time to wait (in seconds) before rechecking for items to transfer.
+
+local minBatchSize = transferBatchSize -- Minimum batch size of items to transfer. Leave as transferBatchSize this was to solve another problem which has been fixed in another way 
+-- If the calculated batch size is smaller than this value, the system will still transfer at least `minBatchSize` items.
+-- This ensures that even small differences between the system and storage (like Danks) will result in a transfer,
+-- and avoids the system "ramping down" too much. -- set to transferBatchSize to disabled ramping down! quicker but GUI is less smooth
+--------------------------------------------------------------------------------------------------------------------
+-- BRIDGE SIDE SETTINGS
+-- The sides you define here should match the sides of the bridges connected to your ME/RS system.
+-- Do not use "top" for a side; instead, use "up", "down", "north", "south", "east", or "west".
+-- To see what direction you're facing in-game, press F3 (in Minecraft) to display directional data. up and down... you should be able to tell lol
+
+local cSide1 = "east"   -- Dank1
+local cSide3 = "up" -- Dank2
+local cSide2 = "west"   --  Functional storage Controller
+
+--------------------------------------------------------------------------------------------------------------------
+-- DANK's 
+local Dank1 = "dankstorage:dank_tile_5"
+local Dank2 = "dankstorage:dank_tile_6"
+
+-- ADD MORE BY copying this and change the end numbers to the values said in chat when you connect them via wired modems
+
+--------------------------------------------------------------------------------------------------------------------
+-- TRANSFER AMOUNT CALCULATION
+-- The script calculates how many items to transfer based on the difference between storage and system item counts.
+-- It compares the calculated batch size with the defined transferBatchSize and minBatchSize to control the flow.
+
+--------------------------------------------------------------------------------------------------------------------
+-- NO MORE SETTINGS -- ADDITIONAL INFO FOR SCRIPTING PURPOSES AT THE BOTTOM!
+
+term.clear() -- Ensures a clear screen
+term.setCursorPos(1,1)
+
+local isPaused = true
+local mode = "Functional Storage"
+----------------------------
+
+print("use edit log.txt to see the log!")
+
+-- Define the log file path (set this to your actual log file path)
+local logFilePath = "log.txt"
+local maxLogLines = 500  -- Set the maximum number of lines before clearing the log
+
+-- Function to write instructions to the log file (this resets the file)
+function writeInstructions()
+    local logFile = io.open(logFilePath, "w")  -- Open the file in write mode to clear it
+    if logFile then
+         logFile:write("Use PG UP or PG DOWN \nto move quickly to the top or bottom.\n")
+        logFile:write("Use this to Help debug problems\n")
+        logFile:write("---------------------------------------------------\n")
+        logFile:close()
+    else
+        print("Error: Could not initialize log file with instructions.")
+    end
+end
+
+-- Function to clear the log file and write instructions
+function clearLogFile()
+    writeInstructions()  -- Reset the log and write instructions
+    print("Log file cleared and instructions reset.")
+end
+
+-- Function to count the number of lines in the log file
+function getLogLineCount()
+    local lineCount = 0
+    local logFile = io.open(logFilePath, "r")  -- Open the file in read mode
+    if logFile then
+        for _ in logFile:lines() do
+            lineCount = lineCount + 1  -- Increment the line count for each line
+        end
+        logFile:close()
+    end
+    return lineCount
+end
+
+-- Function to check if the message already exists in the log file
+function messageExists(message)
+    local logFile = io.open(logFilePath, "r")  -- Open the file in read mode
+    if logFile then
+        for line in logFile:lines() do
+            if line == message then
+                logFile:close()
+                return true  -- Message already exists
+            end
+        end
+        logFile:close()
+    end
+    return false  -- Message does not exist
+end
+
+-- Function to log messages to the file
+function logMessage(message)
+    -- Check the current number of lines in the log file
+    local lineCount = getLogLineCount()
+
+    -- If the log file has exceeded the max number of lines, clear it
+    if lineCount >= maxLogLines then
+        clearLogFile()  -- Clear the log file if it exceeds the maximum lines
+        print("Log file exceeded max lines. Cleared and reset.")
+    end
+
+    -- Check if the message already exists
+    if not messageExists(message) then
+        -- Now open the log file in append mode to write the new message
+        local logFile = io.open(logFilePath, "a")
+        if logFile then
+            logFile:write(message .. "\n")  -- Append the message with a newline
+            logFile:close()  -- Close the file to ensure the message is saved
+        else
+            print("Error: Could not open log file to append message.")
+        end
+    
+        
+    end
+end
+
+-- Call this at the beginning of your script to initialize or clear the log
+clearLogFile()
+
+
+
+
+
+local infoPages = {
+    -- Page 1: IMPORTANT Information
+    "Page 1: IMPORTANT Information.\n\nBridges (RS/ME): Connect via the LEFT side of the Advanced Computer.\nFunctional Storage Controllers: RIGHT.\nDanks: BACK.\nMonitor: BOTTOM.\n\nContact: FriedAlltheTime on Discord.",
+
+    -- Page 2: Basic Setup Instructions
+    "Page 2: Basic Setup Instructions.\n\nRS/ME: Connect on the LEFT with wired modems.\nMonitor: 2x4, HxW attach to BOTTOM for status updates.\nStorage Devices (Danks/FS): Connect to BACK (Danks) or RIGHT (FS).\nEnsure each device has at least one item.\n if you have problems break and replace the monitor",
+
+    -- Page 3: Additional Setup
+    "Page 3: Additional Setup Instructions.\n\nPosition DANK OR FS CONTROLLER next to \nmeBridge\nthen set cSide1 to the direction your storage is in using f3 North, South, East, West \n\n\n\nLink items to the main storage via external storage buses (RS/ME).\nEnsure all storage devices are properly linked.",
+
+    -- Page 4: Operational Details
+    "Page 4: Operational Details.\n\nThe system compares quantities in storage devices with the main system.\nIt balances item counts by moving items between them.\nExample: Moves 1000 cobblestones from FS if system holds 2000.",
+
+    -- Page 5: Performance
+    "Page 5: Performance.\n\nEach bridge can transfer up to 1024 items per tick.\nWith 4 bridges, the system can handle a substantial amount of items.\nPerformance may vary with more bridges or larger setups.",
+
+    -- Page 6: Functional Storage
+    "Page 6: Functional Storage Usage.\n\nEnsure each drawer holds at least one item of the type to move.\nExample: Place cobblestone in a drawer and another item in the second.\nEmpty drawers may cause items to split between them.",
+
+    -- Page 7: Danks Usage
+    "Page 7: Danks Usage.\n\nPlace one item in a Dank slot and press CTRL to lock it.\nPress RESUME in Dank mode to start the porting process.\nThe system moves items until slots are filled or all items are transferred.",
+
+    -- Page 8: Testing and Limits
+    "Page 8: Testing and Limits.\n\nThe system has been tested with 1 Bridge, transferring 1 billion items per side every few seconds.\nIf minBatchSize is too high, a loop may occur.\nPerformance may vary with more bridges.",
+
+    -- Page 9: Troubleshooting
+    "Page 9: Troubleshooting.\n\nIf the system is slow, check the transferBatchSize and minBatchSize settings.\nEnsure all bridges and modems are correctly connected.\nFor further help, contact FriedAlltheTime on Discord.",
+
+    -- Page 10: Settings
+    "Page 10: System Settings.\n\nTransferBatchSize: Controls the maximum number of items to transfer per few seconds (default: 1 Million).\nMinBatchSize: Ensures BatchSize isnt too small.\nTriggerPoint: Adjust to handle item loops."
+}
+
+
+
+
+
+-- Variables to store detected bridges
+local bridges = {}
+local isRSBridge = false
+
+-- Function to refresh peripherals and detect all Danks and Bridges
+local function refreshPeripherals()
+    -- Detect all bridges (ME or RS)
+    local detectedBridges = {}
+    for _, name in pairs(peripheral.getNames()) do
+        local pType = peripheral.getType(name)
+        if pType == "meBridge" or pType == "rsBridge" then
+            table.insert(detectedBridges, { name = name, peripheral = peripheral.wrap(name), type = pType })
+            if pType == "rsBridge" then
+                isRSBridge = true
+            end
+        end
+    end
+
+    if #detectedBridges == 0 then
+        logMessage("Error: No ME or RS Bridge detected!")
+        return false
+    end
+
+    -- Assume the detected bridges are the ones to use
+    bridges = detectedBridges
+
+    storageController = peripheral.find("functionalstorage:storage_controller")
+
+    -- Detect all connected Dank peripherals and store their names
+    local danks = {}
+    for _, name in pairs(peripheral.getNames()) do
+        if peripheral.getType(name) == "dankstorage:dank_tile" then
+            table.insert(danks, { name = name, peripheral = peripheral.wrap(name) })
+        end
+    end
+    
+    -- Check if both are missing
+    if storageController == nil and #danks == 0 then
+        logMessage("Error: No Functional Storage Controller\n or Dank detected!")
+    else
+        if storageController ~= nil then
+            logMessage("Functional Storage Controller detected.")
+        end
+        if #danks > 0 then
+            logMessage("Dank detected: " .. #danks .. " Dank(s) connected.")
+        end
+    end
+
+    -- Wrap the monitor and check if it exists
+    monitor = peripheral.find("monitor")
+    if monitor == nil then
+        logMessage("Error: No monitor detected!")
+        return false
+    end
+
+    local width, height = monitor.getSize()
+    if not ((width == 39 and height == 12) or (width == 79 and height == 24)) then
+        logMessage("Error: Monitor size mismatch! Expected 39x12 or 79x24, got " .. width .. "x" .. height)
+        return false
+    end
+
+    -- Set text scale if the size is correct
+    monitor.setTextScale(0.5)
+
+    -- Return true and the detected danks
+    return true, danks
+end
+
+-- Initial peripheral check
+if not refreshPeripherals() then return end
+
+-- Function to get items from Functional Storage
+local function getFSItems()
+    return storageController.list() or {}
+end
+
+-- Function to get items from Dank
+local function getDankItems(dank)
+    local dankItems = {}
+    for slot = 1, dank.peripheral.size() do
+        local itemDetail = dank.peripheral.getItemDetail(slot)
+        if itemDetail then
+            dankItems[slot] = itemDetail
+        end
+    end
+    return dankItems
+end
+
+-- Function to get items from ME system using a specific ME bridge
+local function getMEItems(meBridge)
+    return meBridge.listItems() or {}
+end
+
+-- Function to get items from RS system using a specific RS bridge
+local function getRSItems(rsBridge)
+    return rsBridge.listItems() or {}
+end
+
+-- Function to find an item in the system by name using any bridge
+local function findItemInSystem(itemName, bridges)
+    for _, bridge in pairs(bridges) do
+        local items = (isRSBridge and getRSItems or getMEItems)(bridge.peripheral)
+        for _, item in pairs(items) do
+            if item.name == itemName then
+                return item, bridge -- Return the item and the bridge
+            end
+        end
+    end
+    return nil, nil
+end
+
+
+
+
+local currentPage = 1
+local totalPages = #infoPages
+local showingInfo = false
+
+local function wrapText(text, width)
+    local wrappedText = {}
+    local line = ""
+
+    for word in text:gmatch("%S+") do
+        if #line + #word + 1 > width then
+            table.insert(wrappedText, line)
+            line = word
+        else
+            if #line > 0 then
+                line = line .. " " .. word
+            else
+                line = word
+            end
+        end
+    end
+
+    if #line > 0 then
+        table.insert(wrappedText, line)
+    end
+
+    return wrappedText
+end
+
+local function displayInfoPage()
+    monitor.clear() -- Clear the screen
+    monitor.setCursorPos(1, 1) -- Set cursor to top left
+    monitor.write("Info Page (" .. currentPage .. "/" .. totalPages .. ")") -- Page number display
+
+    local width, height = monitor.getSize()
+    local content = infoPages[currentPage]
+    local wrappedLines = wrapText(content, width)
+
+    local y = 3
+    for i, line in ipairs(wrappedLines) do
+        if y <= height then
+            monitor.setCursorPos(1, y)
+            monitor.write(line)
+            y = y + 1
+        else
+            break -- Stop if we exceed the monitor height
+        end
+    end
+
+    -- Ensure background is black before writing buttons
+    monitor.setBackgroundColor(colors.black)
+    
+    -- Navigation buttons (adjust position within screen bounds)
+    if currentPage < totalPages then
+        monitor.setCursorPos(1, height - 2)
+        monitor.write("[Next Page]")
+    end
+
+    if currentPage > 1 then
+        monitor.setCursorPos(1, height - 3)
+        monitor.write("[Previous Page]")
+    end
+
+    -- "X" button to exit (ensure it's visible)
+    monitor.setCursorPos(width - 1, 1)
+    monitor.setTextColor(colors.red)
+    monitor.write("X")
+    monitor.setTextColor(colors.white) -- Reset text color
+end
+
+-- Function to display item info and progress on the monitor
+local function updateMonitor(itemName, slot, itemCount, systemCount, difference, progress, dankCount, fsSlotCount, dankName, totalTransferCapacity)
+    if showingInfo then
+        return -- Don't update the monitor if the info page is showing
+    end
+    monitor.clear()
+    monitor.setCursorPos(1, 1)
+    monitor.write("Mode: " .. mode)
+    monitor.setCursorPos(1, 2)
+    monitor.write(isPaused and "Status: Paused" or "Status: Running")
+
+    -- Display additional info based on mode
+    if mode == "Dank" then
+        monitor.setCursorPos(1, 3)
+        monitor.write("Danks Connected: " .. dankCount)
+    elseif mode == "Functional Storage" then
+        monitor.setCursorPos(1, 3)
+        monitor.write("Slots Used: " .. fsSlotCount)
+    end
+
+    monitor.setCursorPos(1, 4)
+    monitor.write("Bridges Connected: " .. #bridges) -- Display number of connected bridges
+
+
+    if itemName then
+        monitor.setCursorPos(1, 6)
+        monitor.write("Moving: " .. itemName)
+        monitor.setCursorPos(1, 7)
+        monitor.write("Slot: " .. slot)
+        monitor.setCursorPos(1, 8)
+        monitor.write("Dank/FS Count: " .. itemCount)
+        monitor.setCursorPos(1, 9)
+        monitor.write("System Count: " .. systemCount)
+        monitor.setCursorPos(1, 10)
+        monitor.write("Difference: " .. math.max(0, difference))
+
+
+        if dankName then
+            monitor.setCursorPos(1, 11)
+            monitor.write("Dank: " .. dankName)
+        end
+
+        -- Progress bar with gray background and green fill
+        local progressBarWidth = 20  -- Width of the progress bar
+       local filledLength = math.min(math.floor(progressBarWidth * progress), progressBarWidth)
+
+        -- Draw the background (gray)
+        monitor.setCursorPos(20, 12)
+        monitor.setBackgroundColor(colors.gray)
+        monitor.write(string.rep(" ", progressBarWidth))
+
+        -- Draw the background (gray)
+        monitor.setCursorPos(20, 13)
+        monitor.setBackgroundColor(colors.gray)
+        monitor.write(string.rep(" ", progressBarWidth))
+
+        -- Draw the filled part (green) over the background
+        monitor.setCursorPos(20, 12)
+
+        monitor.setBackgroundColor(colors.green)
+        monitor.write(string.rep(" ", filledLength))
+
+         -- Draw the filled part (green) over the background
+        monitor.setCursorPos(20, 13)
+
+        monitor.setBackgroundColor(colors.green)
+        monitor.write(string.rep(" ", filledLength))
+
+        -- Reset the background color to prevent affecting the rest of the monitor
+        monitor.setBackgroundColor(colors.black)
+
+        -- Display progress percentage
+        monitor.setCursorPos(1, 13)
+        monitor.setTextColor(colors.white)
+        monitor.write("Progress: " .. math.min(math.floor(progress * 100), 100) .. "%")
+    else
+        monitor.setCursorPos(1, 6)
+        monitor.setTextColor(colors.red)
+        monitor.write("Nothing to move, retrying...")
+        monitor.setTextColor(colors.white)
+    end
+
+    -- Ensure the background color is reset for the rest of the text
+    monitor.setBackgroundColor(colors.black)
+
+    monitor.setCursorPos(1, 14)
+    monitor.write("[Pause/Resume]")
+    monitor.setCursorPos(1, 15)
+    monitor.write("[Switch Mode]")
+    monitor.setCursorPos(1, 16)
+    monitor.write("[Info]")
+
+end
+
+
+
+-- Function to transfer items using a specific bridge
+local function transferItems(bridge, itemName, count, direction)
+
+        return bridge.peripheral.exportItem({ name = itemName, count = count }, direction)
+    end
+
+-- Function to compare and move items from Danks or Functional Storage
+local function compareAndMoveItems()
+if not showingInfo then  -- Only proceed if info page is not displayed
+    while true do
+        local success, danks = refreshPeripherals()
+        if not success then return end
+
+
+
+        if isPaused then
+            updateMonitor(nil, 0, 0, 0, 0, 0, #danks, 0, nil)
+            sleep(sleepInterval)
+        else
+              if mode == "Functional Storage" then
+    local fsItems = getFSItems()
+    local fsSlotCount = #fsItems -- Ensure fsSlotCount is always defined
+
+    if fsSlotCount == 0 then
+        updateMonitor(nil, 0, 0, 0, 0, 0, 0, fsSlotCount, nil)
+    else
+        local somethingMoved = false
+
+        for fsSlot, fsItem in pairs(fsItems) do
+            if isPaused then break end
+
+            -- Fetch initial counts for the system and FS items
+            local systemItem, _ = findItemInSystem(fsItem.name, bridges)
+            if systemItem then
+                local systemCount = systemItem.amount or 0 -- Ensure count is always valid
+                local fsCount = fsItem.count or 0 -- Ensure count is always valid
+                local difference = systemCount - fsCount
+
+                if difference > TriggerPoint then
+                    somethingMoved = true
+                    while difference > TriggerPoint do
+                        if isPaused then break end
+
+                -- Calculate the transfer amount for this iteration
+                    -- Assuming `transferSetting` is a boolean variable
+                     local transferAmount
+
+                       if transferSetting == false then
+                     transferAmount = difference
+                       else
+                         transferAmount = transferBatchSize
+                        end
+
+                        print("This is the transferBatchSize: " .. transferAmount)
+
+                        -- Transfer items using each bridge in all four directions
+                        for _, bridge in pairs(bridges) do
+                            transferItems(bridge, fsItem.name, transferAmount, cSide1)
+                               local progress = fsCount / systemCount
+                        updateMonitor(fsItem.name, fsSlot, fsCount, systemCount, difference, progress, 0, fsSlotCount, nil) --- refresh screen
+                            transferItems(bridge, fsItem.name, transferAmount, cSide1)
+                            transferItems(bridge, fsItem.name, transferAmount, cSide1)
+                               local progress = fsCount / systemCount
+                        updateMonitor(fsItem.name, fsSlot, fsCount, systemCount, difference, progress, 0, fsSlotCount, nil) --- refresh screen
+                            transferItems(bridge, fsItem.name, transferAmount, cSide1)
+                        end
+
+                        -- Re-fetch the system and FS item counts after each transfer
+                        systemItem, _ = findItemInSystem(fsItem.name, bridges)
+                        fsItems = getFSItems() -- Re-fetch FS items
+
+                        -- Exit loop if systemItem or fsItem is not found to prevent errors
+                        if not systemItem or not fsItems[fsSlot] then break end
+
+                        systemCount = systemItem.amount or 0 -- Update system count
+                        fsCount = fsItems[fsSlot].count or 0 -- Update FS count
+                        difference = systemCount - fsCount -- Recalculate difference
+
+                        -- Calculate progress based on updated values
+                        local progress = fsCount / systemCount
+                        updateMonitor(fsItem.name, fsSlot, fsCount, systemCount, difference, progress, 0, fsSlotCount, nil)
+
+                        sleep(0.2)
+                    end
+                end
+            end
+        end
+
+        -- If no items were moved, clear the monitor
+        if not somethingMoved then
+            updateMonitor(nil, 0, 0, 0, 0, 0, 0, fsSlotCount, nil)
+        end
+    end
+
+elseif mode == "Dank" then
+    local itemsMoved = false
+
+    for _, dank in pairs(danks) do
+        local dankItems = getDankItems(dank)
+
+        for dankSlot, dankItem in pairs(dankItems) do
+            if isPaused then break end
+
+            -- Fetch the initial counts of system and Dank items
+            local systemItem, _ = findItemInSystem(dankItem.name, bridges)
+            if systemItem then
+                local totalSystemCount = systemItem.amount or 0 -- Ensure there's always a valid count
+                local dankCount = dankItem.count or 0 -- Ensure there's always a valid count
+                local difference = totalSystemCount - dankCount
+
+                if difference > TriggerPoint then
+                    itemsMoved = true
+                    while difference > TriggerPoint do
+                        if isPaused then break end
+
+                        -- Calculate how much to transfer this round
+                        local transferAmount
+
+                         if transferSetting == false then
+                         transferAmount = difference
+                     else
+                        transferAmount = transferBatchSize
+            end
+                        print("This is the transferBatchSize: " .. transferAmount)
+                            local progress = dankCount / totalSystemCount
+                            updateMonitor(dankItem.name, dankSlot, dankCount, totalSystemCount, difference, progress, #danks, 0, dank.name)
+
+                        -- Transfer items via each bridge
+                        for _, bridge in pairs(bridges) do
+
+
+                        if dank.name == Dank1 then
+                            transferItems(bridge, dankItem.name, transferAmount, cSide2)
+                              local progress = dankCount / totalSystemCount
+                            updateMonitor(dankItem.name, dankSlot, dankCount, totalSystemCount, difference, progress, #danks, 0, dank.name)
+
+
+                            elseif dank.name == Dank2 then
+                            transferItems(bridge, dankItem.name, transferAmount, cSide3)
+                              local progress = dankCount / totalSystemCount
+                            updateMonitor(dankItem.name, dankSlot, dankCount, totalSystemCount, difference, progress, #danks, 0, dank.name)
+
+
+                        end
+
+
+                        -- Re-fetch the current counts and recalculate the difference
+                        systemItem, _ = findItemInSystem(dankItem.name, bridges)
+                        dankItems = getDankItems(dank) -- Refresh Dank items
+
+                        -- Exit loop if systemItem or dankItem is not found to prevent errors
+                        if not systemItem or not dankItems[dankSlot] then break end
+
+                        totalSystemCount = systemItem.amount or 0 -- Re-fetch updated system count
+                        dankCount = dankItems[dankSlot].count or 0 -- Re-fetch updated Dank count
+                        difference = totalSystemCount - dankCount -- Recalculate difference
+
+                        -- Calculate progress based on updated values
+                        local progress = dankCount / totalSystemCount
+                        updateMonitor(dankItem.name, dankSlot, dankCount, totalSystemCount, difference, progress, #danks, 0, dank.name)
+
+                        sleep(0.2)
+                    end
+                end
+            end
+        end
+    end
+end
+    -- If no items were moved, clear the monitor
+    if not itemsMoved then
+        updateMonitor(nil, 0, 0, 0, 0, 0, 0, 0, nil)
+    end
+end
+
+            sleep(sleepInterval)
+        end
+    end
+end
+end
+
+
+-- Function to toggle pause/resume
+local function togglePause()
+    isPaused = not isPaused
+    print(isPaused and "Process paused" or "Process resumed")
+end
+
+-- Function to change mode
+local function switchMode()
+    if mode == "Functional Storage" then
+        mode = "Dank"
+    else
+        mode = "Functional Storage"
+    end
+    print("Switched to " .. mode .. " mode.")
+end
+
+-- Function to handle touchscreen interaction
+local function handleTouch(x, y)
+ if showingInfo then
+        -- Get monitor size to check "X" button position
+        local w, h = monitor.getSize()
+
+        if x == w and y == 1 then
+            -- "X" button to close the info page
+            showingInfo = false
+            monitor.clear()
+            -- Return to the main mode display
+            updateMonitor(nil, 0, 0, 0, 0, 0, 0, 0, nil)
+        elseif x >= 1 and x <= 12 and y == h - 3 and currentPage > 1 then
+            -- Go to previous page if the "Previous Page" button is pressed
+            currentPage = currentPage - 1
+            displayInfoPage()
+        elseif x >= 1 and x <= 12 and y == h - 2 then
+            -- Go to next page if the "Next Page" button is pressed
+            currentPage = math.min(currentPage + 1, totalPages)
+            displayInfoPage()
+        end
+    else
+    if x >= 1 and x <= 12 and y == 14 then
+        -- Pause or resume when the Pause/Resume button is pressed
+        togglePause()
+    elseif x >= 1 and x <= 12 and y == 15 then
+        -- Check if the program is currently running or paused
+        if not isPaused then
+            -- If running, pause it first
+            print("Paused before Switching Modes")
+            togglePause()
+        end
+        -- Switch the mode
+        switchMode()
+         elseif x >= 1 and x <= 12 and y == 16 then
+  -- Check if the program is currently running or paused
+  if not isPaused then
+    -- If running, pause it first
+    print("Paused before Displaying Info Page")
+    togglePause()
+end
+            -- Show info when "Info" button is pressed
+            showingInfo = true
+            displayInfoPage()
+    end
+end
+end
+-- Set up the monitor buttons
+if monitor then
+    monitor.setTextScale(0.5)
+    monitor.clear()
+    monitor.setCursorPos(1, 14)
+    monitor.write("[Pause/Resume]")
+    monitor.setCursorPos(1, 15)
+    monitor.write("[Switch Mode]")
+    monitor.setCursorPos(1, 16)
+monitor.write("[Info]")
+
+else
+    print("No monitor detected.")
+end
+
+-- Event loop to handle touchscreen and periodic updates
+parallel.waitForAny(
+    function()
+        while true do
+            local event, side, x, y = os.pullEvent("monitor_touch")
+            handleTouch(x, y)
+        end
+    end,
+    compareAndMoveItems
+)
+
+-------- Less Important Info -------- (not Updated yet)
+--- PERIPHERAL DETECTION
+-- refreshPeripherals()
+-- Explanation: Detects and wraps ME/RS bridges and connected Danks/Functional Storage controllers.
+-- Details: Continuously runs to ensure peripherals are correctly identified each cycle. Wraps a monitor (peripheral.wrap("bottom")) for displaying progress and information.
+
+--------------------------------------------------------------------------------------------------------------------
+
+--- ITEM RETRIEVAL FUNCTIONS
+-- getFSItems()
+-- Explanation: Fetches the list of items stored in the Functional Storage system.
+
+--------------------------------------------------------------------------------------------------------------------
+
+-- getDankItems(dank)
+-- Explanation: Retrieves item details from connected Dank storage.
+
+--------------------------------------------------------------------------------------------------------------------
+
+-- getMEItems(meBridge) / getRSItems(rsBridge)
+-- Explanation: Retrieve item details from either ME or RS systems, depending on the type of bridge detected.
+
+--------------------------------------------------------------------------------------------------------------------
+
+--- FINDING ITEMS IN THE SYSTEM
+-- findItemInSystem(itemName, bridges)
+-- Explanation: Searches for a specific item across all bridges (ME/RS). Returns the item and the bridge it was found on.
+
+--------------------------------------------------------------------------------------------------------------------
+
+--- MONITOR DISPLAY
+-- updateMonitor()
+-- Explanation: Updates the external monitor with the status of the system (e.g., paused or running), transfer progress, bridge count, and item counts.
+-- Details: Visualizes transfer progress as a progress bar and provides status updates on the system.
+
+--------------------------------------------------------------------------------------------------------------------
+
+--- ITEM TRANSFER LOGIC
+-- transferItems()
+-- Explanation: Moves items from the ME/RS system through one of the connected sides of the bridge.
+-- Details: Transfers items in calculated batch sizes and uses predefined bridge sides (cSide1, cSide2, etc.) to direct the transfer.
+
+--------------------------------------------------------------------------------------------------------------------
+
+--- CORE LOGIC: COMPARE AND MOVE ITEMS
+-- compareAndMoveItems()
+-- Explanation: Main loop for comparing and moving items.
+-- Steps:
+-- - Refresh Peripherals: Ensures all peripherals are detected correctly.
+-- - Check for Paused Status: Updates monitor and sleeps if paused.
+-- - Retrieve Items from Storage: Fetches items from Functional Storage and compares to the ME/RS system.
+-- - Item Comparison: Calculates the difference and transfers items if necessary.
+-- - Transfer Items: Moves items in batches and updates monitor with progress.
+-- - Progress Tracking: Displays transfer progress and system information on the monitor.
+
+--------------------------------------------------------------------------------------------------------------------
+
+--- MODE MANAGEMENT
+-- Explanation: The system operates in two modes:
+-- - Dank Mode: For managing connected Dank storages.
+-- - Functional Storage Mode: For handling items in Functional Storage.
+-- Details: Mode can be switched via the monitor for flexible control.
+
+--------------------------------------------------------------------------------------------------------------------
+
+--- PAUSE AND RESUME FUNCTIONALITY
+-- isPaused
+-- Explanation: Toggle to pause or resume transfers.
+-- Details: Controlled via the monitor, allowing the system to be paused if needed.
