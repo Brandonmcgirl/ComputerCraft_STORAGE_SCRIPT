@@ -54,7 +54,8 @@ To ensure items move correctly between storage systems:
     - Press `RESUME` on the Dank mode monitor interface to begin item transfers.
 
 ## Warning
-- **Single Bridge Usage**: The script currently sends transfer messages to all connected bridges. Using multiple bridges **won’t increase speed**—it only increases the number of Danks you can connect.
+- **Single Bridge Usage ONLY**: The script currently sends transfer messages to all connected bridges so if you try and use multiple it wont work properly!. Using multiple bridges **won’t increase speed**—it only increases the number of Danks you can connect(doesnt 
+  work).
 - Support for additional Danks and speed improvements may be added if the project gains enough support.
 
 ## Functions and System Details
